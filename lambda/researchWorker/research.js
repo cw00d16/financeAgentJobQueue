@@ -86,17 +86,15 @@ async function runResearchPhase({ client, model, maxTokens, userTurn, maxIterati
     iterations += 1;
 
     // Re-declared every iteration with the REMAINING budget, not the full
-    // maxSearchUses — a pause_turn resume is a fresh API call, and if the
-    // server grants max_uses a fresh per-call allowance (unconfirmed by
-    // docs, but the best fit for observed CI data: a run under
-    // maxSearchUses=1/maxIterations=2 measured 12 total searches instead
-    // of the expected ceiling of 2), re-sending the full cap every time
-    // would let the effective ceiling scale with iterations
-    // (maxSearchUses * maxIterations) instead of staying at maxSearchUses.
-    // Once the budget is exhausted, drop the tool entirely so Claude
-    // cannot search again regardless of what the server would otherwise
-    // allow — this is a hard client-side backstop, not dependent on
-    // trusting max_uses semantics.
+    // maxSearchUses. max_uses IS enforced server-side per-request (confirmed
+    // against the web search tool docs) — a blocked attempt returns a
+    // web_search_tool_result_error (max_uses_exceeded) and isn't billed, it
+    // doesn't silently succeed. But without this, a pause_turn resume would
+    // re-arm a full fresh allowance every iteration, letting Claude retry
+    // the tool repeatedly across iterations after exhausting the budget in
+    // an earlier one — wasted output tokens and turns for no real searches.
+    // Once the budget is exhausted, drop the tool entirely so there's
+    // nothing left to retry against.
     const tools = [];
     if (!maxSearchUses || searchCount < maxSearchUses) {
       const webSearchTool = { type: "web_search_20250305", name: "web_search" };
@@ -117,10 +115,16 @@ async function runResearchPhase({ client, model, maxTokens, userTurn, maxIterati
     inputTokens += response.usage?.input_tokens || 0;
     outputTokens += response.usage?.output_tokens || 0;
     totalTokens = inputTokens + outputTokens;
-    // Each web_search_tool_result block is one billed search ($10/1,000 —
-    // see index.js's WEB_SEARCH_PRICE_PER_SEARCH) — a real cost on top of
-    // tokens that the model's own usage totals don't include.
-    searchCount += response.content.filter((block) => block.type === "web_search_tool_result").length;
+    // Count only SUCCESSFUL searches — each billed search ($10/1,000, see
+    // index.js's WEB_SEARCH_PRICE_PER_SEARCH) has content as an array of
+    // web_search_result items. A blocked attempt (max_uses_exceeded, or any
+    // other tool error) has content as a single error object instead, and
+    // per the docs isn't billed — counting those inflated both the search
+    // total and the derived cost estimate whenever Claude retried after
+    // hitting the cap.
+    searchCount += response.content.filter(
+      (block) => block.type === "web_search_tool_result" && Array.isArray(block.content)
+    ).length;
     messages = [...messages, { role: "assistant", content: response.content }];
   } while (
     response.stop_reason === "pause_turn" &&
