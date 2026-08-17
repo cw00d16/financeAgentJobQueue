@@ -2,7 +2,7 @@
 
 An async job queue where one job type is a genuinely agentic, multi-step Claude loop — not a single API call bolted onto a queue. Companion project to [urlShortener](https://github.com/cw00d16/urlShortener) and [chatApplication](https://github.com/cw00d16/chatApplication) — same serverless-on-AWS-with-Terraform conventions, and the guardrail/observability/eval-harness patterns proven in chatApplication's `@agent` feature carry over directly here.
 
-**Status: implemented and deployed.** This README was the plan for the initial build; it's since been updated with what actually got built, real measured costs, and a guardrail added after deployment turned up a cost surprise (see Guardrails and Keeping this cheap below). Deployed instance: frontend at `***REDACTED-CLOUDFRONT-URL***`, API at `***REDACTED-API-URL***` (AWS account `753493992166`, `us-east-2`).
+**Status: implemented and deployed.** This README was the plan for the initial build; it's since been updated with what actually got built, real measured costs, and a guardrail added after deployment turned up a cost surprise (see Guardrails and Keeping this cheap below). Deployed instance: frontend at `***REDACTED-CLOUDFRONT-URL***`. The API endpoint isn't published here — the frontend calls it directly at runtime; get your own via `terraform output api_gateway_url` after deploying.
 
 ## The domain: company research
 
@@ -59,7 +59,7 @@ GET /jobs/{id} ── getJob Lambda ── reads job record
 - **Two queues, not one** — extraction and research jobs have genuinely different SLAs. A stuck extraction job should be considered failed and retried within a couple of minutes; a research job doing several tool-use rounds legitimately needs a much longer visibility timeout before SQS assumes the worker died and redelivers it. One queue with one timeout would either kill research jobs mid-loop or leave failed extraction jobs invisible for too long.
 - **Result delivery is polling, not real-time push.** chatApplication needed a WebSocket because chat messages are inherently live; a job result isn't — the caller submits and checks back. A `GET /jobs/{id}` endpoint is simpler, cheaper, and the right tool for this shape of problem. No API Gateway WebSocket, no `connect`/`disconnect`/`fanout`/`deliver` needed here.
 - **Input documents live directly on the job record** (DynamoDB item, well within the 400KB item limit for text like a transcript or filing excerpt) rather than S3. Simpler for v1 with no bucket/IAM to provision; S3 becomes worth it if this ever needs to accept actual file uploads (scanned PDFs needing OCR, etc.) rather than pasted/fetched text.
-- **A minimal static frontend was added after the initial build**, purely as a convenience over curl — it doesn't change anything above. `frontend/index.html` is a single file (no framework, no build step) that does exactly what any API client would: `POST /jobs` and poll `GET /jobs/{id}`, hosted on S3 behind CloudFront (default `*.cloudfront.net` domain, no custom domain/ACM cert needed) and calling the API directly from the browser since CORS is already open. No server-side rendering, no new backend surface.
+- **A minimal frontend was added after the initial build**, purely as a convenience over curl — it doesn't change anything above. A small React app (Create React App, matching chatApplication's tooling) that does exactly what any API client would: `POST /jobs` and poll `GET /jobs/{id}`, hosted on S3 behind CloudFront (default `*.cloudfront.net` domain, no custom domain/ACM cert needed) and calling the API directly from the browser since CORS is already open. The API URL is injected at CI build time from a `REACT_APP_API_URL` GitHub Actions secret rather than hardcoded in committed source (still ends up in the built JS bundle served to browsers, same as any client-side app — that's inherent to a public demo, not something a build-time secret can hide). No server-side rendering, no new backend surface.
 
 ### Fan-out / fan-in: research jobs depending on extraction jobs
 
@@ -116,7 +116,7 @@ This is a pet project, and the design leans on that everywhere it can:
 - **Queue**: SQS (two queues + two DLQs)
 - **Data**: DynamoDB (`jobs` table), `PAY_PER_REQUEST`
 - **API**: API Gateway HTTP API (`submitJob`, `getJob`), open CORS, no auth (personal use)
-- **Frontend**: static HTML/CSS/JS, no framework, no build step — S3 + CloudFront (default domain, no custom domain/ACM), added after the initial build for convenience (see Architecture above)
+- **Frontend**: React (Create React App, matching chatApplication) — S3 + CloudFront (default domain, no custom domain/ACM), added after the initial build for convenience (see Architecture above)
 - **IaC**: Terraform, same conventions as chatApplication (per-function IAM roles where least privilege matters, OIDC for CI, no long-lived AWS keys)
 - **Secrets**: Secrets Manager for the Anthropic API key
 - **Model**: Claude Haiku 4.5 for both job types; Sonnet as a measured upgrade path for `researchWorker` only if the eval harness shows Haiku falling short — hasn't been needed so far

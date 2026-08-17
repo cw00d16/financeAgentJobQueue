@@ -1,7 +1,8 @@
 # ---------------------------------------------------------------
-# S3 — static frontend hosting
-# CloudFront sits in front; S3 is NOT public directly. Just one small
-# static HTML/JS file (no build step, no React) — see frontend/index.html.
+# S3 — React frontend static hosting
+# CloudFront sits in front; S3 is NOT public directly. The build/sync is
+# owned entirely by CI (see .github/workflows/deploy.yml's deploy-frontend
+# job) — Terraform only provisions the bucket, not its contents.
 # ---------------------------------------------------------------
 
 data "aws_caller_identity" "current" {}
@@ -51,16 +52,4 @@ resource "aws_s3_bucket_policy" "frontend" {
     ]
   })
   depends_on = [aws_s3_bucket_public_access_block.frontend]
-}
-
-# Uploads frontend/index.html directly via Terraform — no build step, no
-# CI required to get a working page live. The deploy-frontend CI job (see
-# .github/workflows/deploy.yml) re-syncs it on future pushes once
-# AWS_ROLE_ARN is set as a repo secret.
-resource "aws_s3_object" "index_html" {
-  bucket       = aws_s3_bucket.frontend.id
-  key          = "index.html"
-  source       = "${path.module}/../frontend/index.html"
-  etag         = filemd5("${path.module}/../frontend/index.html")
-  content_type = "text/html"
 }
