@@ -2,7 +2,7 @@
 
 An async job queue where one job type is a genuinely agentic, multi-step Claude loop — not a single API call bolted onto a queue. Companion project to [urlShortener](https://github.com/cw00d16/urlShortener) and [chatApplication](https://github.com/cw00d16/chatApplication) — same serverless-on-AWS-with-Terraform conventions, and the guardrail/observability/eval-harness patterns proven in chatApplication's `@agent` feature carry over directly here.
 
-**Status: implemented and deployed.** This README was the plan for the initial build; it's since been updated with what actually got built, real measured costs, and a guardrail added after deployment turned up a cost surprise (see Guardrails and Keeping this cheap below). Deployed instance: frontend at `***REDACTED-CLOUDFRONT-URL***`. The API endpoint isn't published here — the frontend calls it directly at runtime; get your own via `terraform output api_gateway_url` after deploying.
+**Status: implemented and deployed.** This README was the plan for the initial build; it's since been updated with what actually got built, real measured costs, and a guardrail added after deployment turned up a cost surprise (see Guardrails and Keeping this cheap below). Live URLs aren't published here; deploy your own via Terraform and pull them with `terraform output`.
 
 ## The domain: company research
 
