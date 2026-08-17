@@ -74,7 +74,9 @@ function buildUserTurn({ companyName, extractedFacts, truncateChars }) {
 async function runResearchPhase({ client, model, maxTokens, userTurn, maxIterations, maxTotalTokens, maxSearchUses }) {
   let messages = [{ role: "user", content: userTurn }];
   let iterations = 0;
-  let totalTokens = 0;
+  let totalTokens = 0; // input+output combined — only used for the maxTotalTokens budget check below
+  let inputTokens = 0; // true input tokens, tracked separately for correct $1/MTok billing
+  let outputTokens = 0; // true output tokens, tracked separately for correct $5/MTok billing
   let searchCount = 0;
   let response;
 
@@ -93,7 +95,9 @@ async function runResearchPhase({ client, model, maxTokens, userTurn, maxIterati
       messages,
     });
 
-    totalTokens += (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0);
+    inputTokens += response.usage?.input_tokens || 0;
+    outputTokens += response.usage?.output_tokens || 0;
+    totalTokens = inputTokens + outputTokens;
     // Each web_search_tool_result block is one billed search ($10/1,000 —
     // see index.js's WEB_SEARCH_PRICE_PER_SEARCH) — a real cost on top of
     // tokens that the model's own usage totals don't include.
@@ -105,7 +109,7 @@ async function runResearchPhase({ client, model, maxTokens, userTurn, maxIterati
     totalTokens < maxTotalTokens
   );
 
-  return { messages, iterations, totalTokens, searchCount, lastResponse: response };
+  return { messages, iterations, inputTokens, outputTokens, totalTokens, searchCount, lastResponse: response };
 }
 
 // Verification/finalize phase: always exactly one call, tools removed so

@@ -121,7 +121,13 @@ async function processRecord(record) {
       truncateChars: FACTS_TRUNCATE_CHARS,
     });
 
-    const { messages, iterations, totalTokens: researchTokens, searchCount } = await runResearchPhase({
+    const {
+      messages,
+      iterations,
+      inputTokens: researchInputTokens,
+      outputTokens: researchOutputTokens,
+      searchCount,
+    } = await runResearchPhase({
       client,
       model: MODEL,
       maxTokens: MAX_TOKENS,
@@ -137,8 +143,8 @@ async function processRecord(record) {
       throw new Error("Claude declined to finalize this research report (safety refusal)");
     }
 
-    const inputTokens = researchTokens + (verifyResponse.usage?.input_tokens || 0);
-    const outputTokens = verifyResponse.usage?.output_tokens || 0;
+    const inputTokens = researchInputTokens + (verifyResponse.usage?.input_tokens || 0);
+    const outputTokens = researchOutputTokens + (verifyResponse.usage?.output_tokens || 0);
     const estimatedCostUsd = estimateCostUsd(inputTokens, outputTokens) + searchCount * WEB_SEARCH_PRICE_PER_SEARCH;
 
     const textBlock = verifyResponse.content.find((block) => block.type === "text");

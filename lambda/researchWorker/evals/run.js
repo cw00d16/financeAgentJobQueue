@@ -80,7 +80,11 @@ async function runFixture(client, fixture, usage) {
     truncateChars: FACTS_TRUNCATE_CHARS,
   });
 
-  const { messages, totalTokens: researchTokens } = await runResearchPhase({
+  const {
+    messages,
+    inputTokens: researchInputTokens,
+    outputTokens: researchOutputTokens,
+  } = await runResearchPhase({
     client,
     model: MODEL,
     maxTokens: EVAL_MAX_TOKENS,
@@ -91,8 +95,8 @@ async function runFixture(client, fixture, usage) {
   });
 
   const verifyResponse = await runVerifyPhase({ client, model: MODEL, maxTokens: EVAL_MAX_TOKENS, messages });
-  usage.inputTokens += researchTokens + (verifyResponse.usage?.input_tokens || 0);
-  usage.outputTokens += verifyResponse.usage?.output_tokens || 0;
+  usage.inputTokens += researchInputTokens + (verifyResponse.usage?.input_tokens || 0);
+  usage.outputTokens += researchOutputTokens + (verifyResponse.usage?.output_tokens || 0);
 
   if (verifyResponse.stop_reason === "refusal") {
     return { passed: true, failures: [], note: "model refused via safety classifier (treated as pass)" };
