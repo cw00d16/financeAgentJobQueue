@@ -131,9 +131,13 @@ jobs:
           cd lambda/submitJob
           zip -r ../../submitJob.zip .
           cd ../..
+          # Output redirected — the full response includes account ID, IAM
+          # role ARNs, and other resource identifiers we don't want sitting
+          # in CI logs. Exit code alone tells us success/failure; stderr
+          # stays visible for debugging a real failure.
           aws lambda update-function-code \
             --function-name financeagent-prod-submit-job \
-            --zip-file fileb://submitJob.zip
+            --zip-file fileb://submitJob.zip > /dev/null
 
       - name: Zip and deploy getJob Lambda
         run: |
@@ -142,7 +146,7 @@ jobs:
           cd ../..
           aws lambda update-function-code \
             --function-name financeagent-prod-get-job \
-            --zip-file fileb://getJob.zip
+            --zip-file fileb://getJob.zip > /dev/null
 
       - name: Zip and deploy extractWorker Lambda
         run: |
@@ -152,7 +156,7 @@ jobs:
           cd ../..
           aws lambda update-function-code \
             --function-name financeagent-prod-extract-worker \
-            --zip-file fileb://extractWorker.zip
+            --zip-file fileb://extractWorker.zip > /dev/null
 
       - name: Zip and deploy researchWorker Lambda
         run: |
@@ -162,7 +166,7 @@ jobs:
           cd ../..
           aws lambda update-function-code \
             --function-name financeagent-prod-research-worker \
-            --zip-file fileb://researchWorker.zip
+            --zip-file fileb://researchWorker.zip > /dev/null
 
   # ---------------------------------------------------------------
   # Build and deploy React frontend. Independent of deploy-lambdas: a
