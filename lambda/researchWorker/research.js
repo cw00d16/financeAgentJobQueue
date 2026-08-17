@@ -13,7 +13,9 @@ Work efficiently: search only what you need to cover the report, then write a dr
 
 const VERIFY_SYSTEM_PROMPT = `You are verifying a draft financial research report against the structured facts it was supposed to be grounded in.
 
-Check that: every figure attributed to the extracted facts actually matches them, the report addresses the correct fiscal period, and no claim is fabricated or unsupported. Correct anything wrong, then output the final, verified report in the required structure. If the draft is already correct, output it as-is in the required structure.`;
+Check that: every figure attributed to the extracted facts actually matches them, the report addresses the correct fiscal period, and no claim is fabricated or unsupported. Correct anything wrong, then output the final, verified report in the required structure. If the draft is already correct, output it as-is in the required structure.
+
+If no extracted facts were provided as input, set usedExtractedFacts to false and say so explicitly in the executive summary — state plainly that this report is based on public research only, not on company-provided source documents.`;
 
 // A nullable version of a base schema type, expressed as anyOf per the
 // structured-outputs schema subset (no "type": [x, "null"] union arrays).
@@ -80,18 +82,35 @@ async function runResearchPhase({ client, model, maxTokens, userTurn, maxIterati
   let searchCount = 0;
   let response;
 
-  const webSearchTool = { type: "web_search_20250305", name: "web_search" };
-  if (maxSearchUses) webSearchTool.max_uses = maxSearchUses;
-
   do {
     iterations += 1;
+
+    // Re-declared every iteration with the REMAINING budget, not the full
+    // maxSearchUses — a pause_turn resume is a fresh API call, and if the
+    // server grants max_uses a fresh per-call allowance (unconfirmed by
+    // docs, but the best fit for observed CI data: a run under
+    // maxSearchUses=1/maxIterations=2 measured 12 total searches instead
+    // of the expected ceiling of 2), re-sending the full cap every time
+    // would let the effective ceiling scale with iterations
+    // (maxSearchUses * maxIterations) instead of staying at maxSearchUses.
+    // Once the budget is exhausted, drop the tool entirely so Claude
+    // cannot search again regardless of what the server would otherwise
+    // allow — this is a hard client-side backstop, not dependent on
+    // trusting max_uses semantics.
+    const tools = [];
+    if (!maxSearchUses || searchCount < maxSearchUses) {
+      const webSearchTool = { type: "web_search_20250305", name: "web_search" };
+      if (maxSearchUses) webSearchTool.max_uses = maxSearchUses - searchCount;
+      tools.push(webSearchTool);
+    }
+
     response = await client.messages.create({
       model,
       max_tokens: maxTokens,
       system: [{ type: "text", text: RESEARCH_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
       // Basic (non-dynamic-filtering) web search — Haiku 4.5 doesn't
       // support the newer web_search_20260209 variant.
-      tools: [webSearchTool],
+      tools,
       messages,
     });
 
@@ -106,7 +125,8 @@ async function runResearchPhase({ client, model, maxTokens, userTurn, maxIterati
   } while (
     response.stop_reason === "pause_turn" &&
     iterations < maxIterations &&
-    totalTokens < maxTotalTokens
+    totalTokens < maxTotalTokens &&
+    (!maxSearchUses || searchCount < maxSearchUses)
   );
 
   return { messages, iterations, inputTokens, outputTokens, totalTokens, searchCount, lastResponse: response };

@@ -92,6 +92,7 @@ async function runFixture(client, fixture, usage) {
 
   const {
     messages,
+    iterations,
     inputTokens: researchInputTokens,
     outputTokens: researchOutputTokens,
     searchCount,
@@ -109,15 +110,19 @@ async function runFixture(client, fixture, usage) {
   usage.inputTokens += researchInputTokens + (verifyResponse.usage?.input_tokens || 0);
   usage.outputTokens += researchOutputTokens + (verifyResponse.usage?.output_tokens || 0);
   usage.searchCount += searchCount;
+  // Per-fixture breakdown, distinct from the run-wide `usage` totals — the
+  // gap that made the "12 searches" anomaly impossible to attribute to a
+  // specific fixture from results.json alone.
+  const perFixtureUsage = { researchIterations: iterations, searchCount };
 
   if (verifyResponse.stop_reason === "refusal") {
-    return { passed: true, failures: [], note: "model refused via safety classifier (treated as pass)" };
+    return { passed: true, failures: [], note: "model refused via safety classifier (treated as pass)", usage: perFixtureUsage };
   }
 
   // A clearer failure than the JSON.parse crash this would otherwise hit —
   // the response got cut off mid-structure before it ever produced valid JSON.
   if (verifyResponse.stop_reason === "max_tokens") {
-    return { passed: false, failures: [`response truncated at EVAL_MAX_TOKENS (${EVAL_MAX_TOKENS}) before completing — raise the cap`] };
+    return { passed: false, failures: [`response truncated at EVAL_MAX_TOKENS (${EVAL_MAX_TOKENS}) before completing — raise the cap`], usage: perFixtureUsage };
   }
 
   const textBlock = verifyResponse.content.find((b) => b.type === "text");
@@ -131,7 +136,7 @@ async function runFixture(client, fixture, usage) {
     if (!judgeResult.passed) failures.push(`judge: ${judgeResult.reason}`);
   }
 
-  return { passed: failures.length === 0, failures, report, judgeResult };
+  return { passed: failures.length === 0, failures, report, judgeResult, usage: perFixtureUsage };
 }
 
 async function main() {
@@ -152,7 +157,8 @@ async function main() {
     try {
       const result = await runFixture(client, fixture, usage);
       results.push({ id: fixture.id, ...result });
-      console.log(result.passed ? "PASS" : `FAIL — ${result.failures.join("; ")}`);
+      const usageNote = result.usage ? ` [${result.usage.researchIterations} iter, ${result.usage.searchCount} searches]` : "";
+      console.log((result.passed ? "PASS" : `FAIL — ${result.failures.join("; ")}`) + usageNote);
     } catch (err) {
       results.push({ id: fixture.id, passed: false, failures: [`error: ${err.message}`] });
       console.log(`ERROR — ${err.message}`);
