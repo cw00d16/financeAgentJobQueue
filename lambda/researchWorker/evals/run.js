@@ -22,7 +22,13 @@ const MODEL = process.env.MODEL || "claude-haiku-4-5";
 
 // --- Hard cost-ceiling knobs — deliberately not read from fixtures, so no
 // fixture edit can silently blow the budget. ---
-const EVAL_MAX_TOKENS = 1024;
+// 1024 was too tight for a fixture with no pre-supplied extracted facts —
+// the verify phase has to synthesize a fuller report from scratch and hit
+// the cap mid-JSON-string, which JSON.parse then failed on with a cryptic
+// "Unterminated string" error (see runFixture's explicit max_tokens check
+// below for a clearer failure message if this ever recurs). 2048 gives
+// real headroom while staying well under production's 4096.
+const EVAL_MAX_TOKENS = 2048;
 const EVAL_MAX_ITERATIONS = 2; // real jobs get RESEARCH_MAX_ITERATIONS (default 5); evals stay tight
 const EVAL_MAX_TOTAL_TOKENS = 20000;
 const EVAL_MAX_SEARCH_USES = 1;
@@ -34,6 +40,10 @@ const JUDGE_RESPONSE_TRUNCATE_CHARS = 1500;
 // infrastructure/observability.tf.
 const INPUT_PRICE_PER_MTOK = 1;
 const OUTPUT_PRICE_PER_MTOK = 5;
+// Web search is billed separately from tokens ($10 per 1,000 searches) and
+// isn't reflected in usage at all — same gap fixed in researchWorker/index.js,
+// applied here too so "Measured cost" isn't a silent undercount.
+const WEB_SEARCH_PRICE_PER_SEARCH = 0.01;
 
 const JUDGE_SYSTEM_PROMPT = "You are a strict, terse test grader for a financial research report. You will be given a rubric and a report to grade against it. Reply with exactly one line: the word PASS or FAIL, then a colon, then a reason in 15 words or fewer. Nothing else.";
 
@@ -84,6 +94,7 @@ async function runFixture(client, fixture, usage) {
     messages,
     inputTokens: researchInputTokens,
     outputTokens: researchOutputTokens,
+    searchCount,
   } = await runResearchPhase({
     client,
     model: MODEL,
@@ -97,9 +108,16 @@ async function runFixture(client, fixture, usage) {
   const verifyResponse = await runVerifyPhase({ client, model: MODEL, maxTokens: EVAL_MAX_TOKENS, messages });
   usage.inputTokens += researchInputTokens + (verifyResponse.usage?.input_tokens || 0);
   usage.outputTokens += researchOutputTokens + (verifyResponse.usage?.output_tokens || 0);
+  usage.searchCount += searchCount;
 
   if (verifyResponse.stop_reason === "refusal") {
     return { passed: true, failures: [], note: "model refused via safety classifier (treated as pass)" };
+  }
+
+  // A clearer failure than the JSON.parse crash this would otherwise hit —
+  // the response got cut off mid-structure before it ever produced valid JSON.
+  if (verifyResponse.stop_reason === "max_tokens") {
+    return { passed: false, failures: [`response truncated at EVAL_MAX_TOKENS (${EVAL_MAX_TOKENS}) before completing — raise the cap`] };
   }
 
   const textBlock = verifyResponse.content.find((b) => b.type === "text");
@@ -126,7 +144,7 @@ async function main() {
 
   const client = new Anthropic({ apiKey });
   const fixtures = loadFixtures();
-  const usage = { inputTokens: 0, outputTokens: 0 };
+  const usage = { inputTokens: 0, outputTokens: 0, searchCount: 0 };
   const results = [];
 
   for (const fixture of fixtures) {
@@ -143,11 +161,12 @@ async function main() {
 
   const passCount = results.filter((r) => r.passed).length;
   const estimatedCost = (usage.inputTokens / 1_000_000) * INPUT_PRICE_PER_MTOK
-    + (usage.outputTokens / 1_000_000) * OUTPUT_PRICE_PER_MTOK;
+    + (usage.outputTokens / 1_000_000) * OUTPUT_PRICE_PER_MTOK
+    + usage.searchCount * WEB_SEARCH_PRICE_PER_SEARCH;
 
   console.log("");
   console.log(`${passCount}/${results.length} fixtures passed`);
-  console.log(`Measured usage: ${usage.inputTokens} input tokens, ${usage.outputTokens} output tokens`);
+  console.log(`Measured usage: ${usage.inputTokens} input tokens, ${usage.outputTokens} output tokens, ${usage.searchCount} web searches`);
   console.log(`Measured cost: $${estimatedCost.toFixed(6)}`);
 
   fs.writeFileSync(

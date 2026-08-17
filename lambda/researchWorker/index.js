@@ -142,6 +142,13 @@ async function processRecord(record) {
     if (verifyResponse.stop_reason === "refusal") {
       throw new Error("Claude declined to finalize this research report (safety refusal)");
     }
+    // A clearer failure than the JSON.parse crash this would otherwise hit —
+    // caught in eval testing when a low max_tokens cap cut a response off
+    // mid-structure (see evals/run.js). MAX_TOKENS=4096 makes this unlikely
+    // in production, but fail clearly instead of on an opaque parse error.
+    if (verifyResponse.stop_reason === "max_tokens") {
+      throw new Error(`Response truncated at RESEARCH_MAX_TOKENS (${MAX_TOKENS}) before completing`);
+    }
 
     const inputTokens = researchInputTokens + (verifyResponse.usage?.input_tokens || 0);
     const outputTokens = researchOutputTokens + (verifyResponse.usage?.output_tokens || 0);
