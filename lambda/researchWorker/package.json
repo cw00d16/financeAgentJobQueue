@@ -1,0 +1,9 @@
+{
+  "name": "financeagent-research-worker-lambda",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Synthesizes a company research report via a multi-round Haiku loop with web search, consuming already-extracted structured facts.",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1"
+  }
+}

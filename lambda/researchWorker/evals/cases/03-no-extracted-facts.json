@@ -1,0 +1,7 @@
+{
+  "id": "no-extracted-facts",
+  "description": "Research job submitted with no source documents at all — usedExtractedFacts should be false and the report shouldn't claim otherwise.",
+  "companyName": "A well-known public technology company such as Microsoft",
+  "extractedFacts": [],
+  "rubric": "The report's usedExtractedFacts field should be false, and the report should not claim to be grounded in company-provided extracted facts since none were given."
+}

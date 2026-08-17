@@ -1,0 +1,194 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  id-token: write   # Required for OIDC
+  contents: read
+
+env:
+  AWS_REGION: us-east-2
+
+jobs:
+  # ---------------------------------------------------------------
+  # Evaluate extraction behavior — real Claude calls against a small
+  # fixture set (see lambda/extractWorker/evals/). Runs on every push and
+  # PR; deploy-lambdas additionally requires it to pass before touching prod.
+  # ---------------------------------------------------------------
+  eval-extraction:
+    name: Evaluate extraction behavior
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: lambda/extractWorker/package-lock.json
+
+      - name: Configure AWS credentials (OIDC — no stored keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install extractWorker dependencies
+        working-directory: lambda/extractWorker
+        run: npm ci
+
+      - name: Run extraction evals
+        working-directory: lambda/extractWorker
+        run: |
+          export ANTHROPIC_API_KEY=$(aws secretsmanager get-secret-value \
+            --secret-id financeagent-prod-anthropic-api-key \
+            --query SecretString --output text)
+          node evals/run.js
+
+      - name: Upload eval results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: extraction-eval-results
+          path: lambda/extractWorker/evals/results.json
+
+  # ---------------------------------------------------------------
+  # Evaluate research behavior — real Claude calls (research loop capped
+  # to 2 iterations, web_search capped to 1 use per fixture — see
+  # lambda/researchWorker/evals/run.js) against a small fixture set.
+  # ---------------------------------------------------------------
+  eval-research:
+    name: Evaluate research behavior
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: lambda/researchWorker/package-lock.json
+
+      - name: Configure AWS credentials (OIDC — no stored keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install researchWorker dependencies
+        working-directory: lambda/researchWorker
+        run: npm ci
+
+      - name: Run research evals
+        working-directory: lambda/researchWorker
+        run: |
+          export ANTHROPIC_API_KEY=$(aws secretsmanager get-secret-value \
+            --secret-id financeagent-prod-anthropic-api-key \
+            --query SecretString --output text)
+          node evals/run.js
+
+      - name: Upload eval results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: research-eval-results
+          path: lambda/researchWorker/evals/results.json
+
+  # ---------------------------------------------------------------
+  # Deploy Lambda functions
+  # ---------------------------------------------------------------
+  deploy-lambdas:
+    name: Deploy Lambda functions
+    runs-on: ubuntu-latest
+    needs: [eval-extraction, eval-research]
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            lambda/extractWorker/package-lock.json
+            lambda/researchWorker/package-lock.json
+
+      - name: Configure AWS credentials (OIDC — no stored keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Zip and deploy submitJob Lambda
+        run: |
+          cd lambda/submitJob
+          zip -r ../../submitJob.zip .
+          cd ../..
+          aws lambda update-function-code \
+            --function-name financeagent-prod-submit-job \
+            --zip-file fileb://submitJob.zip
+
+      - name: Zip and deploy getJob Lambda
+        run: |
+          cd lambda/getJob
+          zip -r ../../getJob.zip .
+          cd ../..
+          aws lambda update-function-code \
+            --function-name financeagent-prod-get-job \
+            --zip-file fileb://getJob.zip
+
+      - name: Zip and deploy extractWorker Lambda
+        run: |
+          cd lambda/extractWorker
+          npm ci --omit=dev
+          zip -r ../../extractWorker.zip .
+          cd ../..
+          aws lambda update-function-code \
+            --function-name financeagent-prod-extract-worker \
+            --zip-file fileb://extractWorker.zip
+
+      - name: Zip and deploy researchWorker Lambda
+        run: |
+          cd lambda/researchWorker
+          npm ci --omit=dev
+          zip -r ../../researchWorker.zip .
+          cd ../..
+          aws lambda update-function-code \
+            --function-name financeagent-prod-research-worker \
+            --zip-file fileb://researchWorker.zip
+
+  # ---------------------------------------------------------------
+  # PR checks (runs on pull requests, doesn't deploy) — terraform fmt/
+  # validate stands in for chatApplication's frontend build-check job,
+  # since this project has no frontend.
+  # ---------------------------------------------------------------
+  terraform-check:
+    name: Terraform fmt & validate
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.0"
+
+      - name: terraform fmt -check
+        working-directory: infrastructure
+        run: terraform fmt -check -recursive
+
+      - name: terraform init (no backend)
+        working-directory: infrastructure
+        run: terraform init -backend=false
+
+      - name: terraform validate
+        working-directory: infrastructure
+        run: terraform validate

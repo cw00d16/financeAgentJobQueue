@@ -1,0 +1,20 @@
+{
+  "id": "uses-extracted-facts",
+  "description": "Extracted facts are provided for the fiscal period being asked about — checks the report actually incorporates them rather than ignoring them in favor of a generic web search summary.",
+  "companyName": "Acme Corp",
+  "extractedFacts": [
+    {
+      "company": "Acme Corp",
+      "ticker": "ACME",
+      "fiscalPeriod": "Q1 2026",
+      "revenue": { "actual": 1240000000, "yoyGrowthPct": 12.4 },
+      "eps": { "gaap": 1.15, "nonGaap": 1.32 },
+      "operatingMarginPct": 22.1,
+      "guidance": { "nextPeriodRevenue": "1.28B-1.32B", "changedFromPriorGuidance": true },
+      "segmentBreakdown": [{ "name": "Cloud", "revenue": 700000000 }, { "name": "Hardware", "revenue": 540000000 }],
+      "notableEvents": ["announced restructuring", "CFO transition"],
+      "managementQuotes": ["\"We're seeing strong momentum in enterprise adoption\" — CEO"]
+    }
+  ],
+  "rubric": "The report's executive summary or a section must mention Acme's Q1 2026 revenue figure of approximately $1.24 billion (or 12.4% growth), showing it used the extracted facts rather than only generic web knowledge."
+}

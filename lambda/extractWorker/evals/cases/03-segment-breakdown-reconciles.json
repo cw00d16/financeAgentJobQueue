@@ -1,0 +1,7 @@
+{
+  "id": "segment-breakdown-reconciles",
+  "description": "Three segments that should sum close to total revenue — exercises the arithmetic reconciliation check, not just schema shape.",
+  "documentType": "earnings call transcript",
+  "documentText": "Operator: Welcome to Delta Analytics' third quarter fiscal 2026 earnings call.\n\nCFO: Thanks. Total revenue for Q3 2026 was $980 million, up 8.7% year-over-year. GAAP EPS was $2.01, non-GAAP EPS was $2.20. Operating margin was 19.5%.\n\nBy segment: our Data Platform segment generated $420 million, our Analytics Tools segment generated $380 million, and our Professional Services segment generated $160 million.\n\nFor Q4, we're guiding to revenue of $1.0 billion to $1.05 billion, consistent with our prior guidance.\n\nDuring the quarter we completed the acquisition of a smaller analytics startup.\n\nCEO: \"Our analytics tools business had its strongest quarter yet.\"",
+  "expect": []
+}

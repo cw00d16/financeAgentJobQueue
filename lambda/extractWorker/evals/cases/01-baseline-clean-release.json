@@ -1,0 +1,9 @@
+{
+  "id": "baseline-clean-release",
+  "description": "A clean, complete earnings release — sanity check that every field extracts correctly.",
+  "documentType": "earnings release",
+  "documentText": "Acme Corp (NASDAQ: ACME) today reported financial results for its first quarter of fiscal 2026 (Q1 2026), ended March 31, 2026.\n\nTotal revenue was $1.24 billion, up 12.4% year-over-year. GAAP diluted earnings per share was $1.15; non-GAAP diluted EPS was $1.32. Non-GAAP operating margin was 22.1%.\n\nSegment revenue: Cloud segment revenue was $700 million. Hardware segment revenue was $540 million.\n\nThe company issued guidance for Q2 2026 revenue of $1.28 billion to $1.32 billion, an increase from prior guidance of $1.22 billion to $1.26 billion.\n\nDuring the quarter, Acme announced a restructuring of its hardware division and a transition of its Chief Financial Officer.\n\nCEO Jane Smith said: \"We're seeing strong momentum in enterprise adoption, and our cloud segment continues to outperform our expectations.\"",
+  "expect": [
+    { "path": "ticker", "equals": "ACME" }
+  ]
+}

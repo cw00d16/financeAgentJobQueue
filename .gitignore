@@ -1,0 +1,23 @@
+# Terraform state and secrets — never commit these
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
+terraform.tfvars
+.lambda_builds/
+*.zip
+tfplan*
+
+# Local env files
+.env
+.env.local
+
+# Node
+node_modules/
+
+# Eval harness output — per-run artifact, not source
+lambda/extractWorker/evals/results.json
+lambda/researchWorker/evals/results.json
+
+# macOS
+.DS_Store

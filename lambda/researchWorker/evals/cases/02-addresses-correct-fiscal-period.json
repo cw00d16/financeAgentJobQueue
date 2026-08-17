@@ -1,0 +1,20 @@
+{
+  "id": "addresses-correct-fiscal-period",
+  "description": "Checks the report's fiscalPeriodCovered field matches the period given in the extracted facts, not a different or hallucinated period.",
+  "companyName": "Beacon Industries",
+  "extractedFacts": [
+    {
+      "company": "Beacon Industries",
+      "ticker": "BCN",
+      "fiscalPeriod": "Q2 2026",
+      "revenue": { "actual": 410000000, "yoyGrowthPct": 3.1 },
+      "eps": { "gaap": 0.44, "nonGaap": null },
+      "operatingMarginPct": 14.2,
+      "guidance": { "nextPeriodRevenue": null, "changedFromPriorGuidance": null },
+      "segmentBreakdown": [],
+      "notableEvents": [],
+      "managementQuotes": []
+    }
+  ],
+  "rubric": "The report must address fiscal period Q2 2026 specifically (in fiscalPeriodCovered or the executive summary) — not a different quarter, and not omit the period entirely."
+}

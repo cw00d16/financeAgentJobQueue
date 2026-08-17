@@ -1,0 +1,9 @@
+{
+  "name": "financeagent-extract-worker-lambda",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Extracts structured facts from an earnings document via a single Haiku call with structured outputs.",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1"
+  }
+}

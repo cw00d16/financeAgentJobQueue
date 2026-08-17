@@ -1,0 +1,11 @@
+{
+  "id": "missing-nongaap-and-guidance",
+  "description": "Document with no non-GAAP EPS and no forward guidance at all — checks the model uses null rather than fabricating figures.",
+  "documentType": "earnings release",
+  "documentText": "Beacon Industries (NYSE: BCN) reported results for the second quarter of fiscal 2026 (Q2 2026).\n\nRevenue was $410 million, up 3.1% from the prior-year quarter. GAAP diluted EPS was $0.44. Operating margin was 14.2%.\n\nThe company did not provide forward guidance for the next quarter, citing macroeconomic uncertainty.\n\nNo notable corporate events occurred during the quarter.",
+  "expect": [
+    { "path": "ticker", "equals": "BCN" },
+    { "path": "eps.nonGaap", "equals": null },
+    { "path": "guidance.nextPeriodRevenue", "equals": null }
+  ]
+}
