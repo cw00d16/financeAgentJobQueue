@@ -74,6 +74,41 @@ resource "aws_iam_role_policy" "github_lambda" {
   })
 }
 
+# Policy: deploy frontend to S3 + invalidate CloudFront
+resource "aws_iam_role_policy" "github_frontend" {
+  name = "${local.prefix}-github-frontend"
+  role = aws_iam_role.github_actions.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "S3Deploy"
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:DeleteObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.frontend.arn,
+          "${aws_s3_bucket.frontend.arn}/*"
+        ]
+      },
+      {
+        Sid    = "CloudFrontInvalidate"
+        Effect = "Allow"
+        Action = [
+          "cloudfront:CreateInvalidation",
+          "cloudfront:GetInvalidation"
+        ]
+        Resource = aws_cloudfront_distribution.frontend.arn
+      }
+    ]
+  })
+}
+
 # Policy: read the Anthropic API key for the eval-harness CI jobs.
 # Read-only, scoped to exactly the one secret the workers themselves use —
 # no new copy of the key gets created anywhere.

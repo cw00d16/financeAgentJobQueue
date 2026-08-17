@@ -1,3 +1,18 @@
+output "frontend_url" {
+  description = "CloudFront URL for the static frontend"
+  value       = "https://${aws_cloudfront_distribution.frontend.domain_name}"
+}
+
+output "frontend_s3_bucket_name" {
+  description = "S3 bucket the frontend deploys to — set as the FRONTEND_S3_BUCKET GitHub Actions secret"
+  value       = aws_s3_bucket.frontend.bucket
+}
+
+output "cloudfront_distribution_id" {
+  description = "CloudFront distribution ID — set as the CLOUDFRONT_DISTRIBUTION_ID GitHub Actions secret"
+  value       = aws_cloudfront_distribution.frontend.id
+}
+
 output "api_gateway_url" {
   description = "HTTP API invoke URL (POST /jobs, GET /jobs/{id})"
   value       = "${aws_apigatewayv2_api.main.api_endpoint}/${aws_apigatewayv2_stage.main.name}"

@@ -165,9 +165,38 @@ jobs:
             --zip-file fileb://researchWorker.zip
 
   # ---------------------------------------------------------------
+  # Deploy the static frontend — no build step (plain HTML/JS, see
+  # frontend/index.html), so this is just a sync + cache invalidation.
+  # Independent of deploy-lambdas: a frontend-only change shouldn't wait
+  # on (or be blocked by) the eval harness.
+  # ---------------------------------------------------------------
+  deploy-frontend:
+    name: Deploy frontend
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC — no stored keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Sync to S3
+        run: |
+          aws s3 sync frontend/ s3://${{ secrets.FRONTEND_S3_BUCKET }}/ --delete
+
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
+
+  # ---------------------------------------------------------------
   # PR checks (runs on pull requests, doesn't deploy) — terraform fmt/
-  # validate stands in for chatApplication's frontend build-check job,
-  # since this project has no frontend.
+  # validate.
   # ---------------------------------------------------------------
   terraform-check:
     name: Terraform fmt & validate
