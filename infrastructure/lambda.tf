@@ -384,6 +384,7 @@ resource "aws_lambda_function" "research_worker" {
       MAX_RECEIVE_COUNT         = tostring(var.research_max_receive_count)
       RESEARCH_MAX_ITERATIONS   = tostring(var.research_max_iterations)
       RESEARCH_MAX_TOTAL_TOKENS = tostring(var.research_max_total_tokens)
+      RESEARCH_MAX_SEARCH_USES  = tostring(var.research_max_search_uses)
     })
   }
 

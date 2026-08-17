@@ -75,6 +75,7 @@ async function runResearchPhase({ client, model, maxTokens, userTurn, maxIterati
   let messages = [{ role: "user", content: userTurn }];
   let iterations = 0;
   let totalTokens = 0;
+  let searchCount = 0;
   let response;
 
   const webSearchTool = { type: "web_search_20250305", name: "web_search" };
@@ -93,6 +94,10 @@ async function runResearchPhase({ client, model, maxTokens, userTurn, maxIterati
     });
 
     totalTokens += (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0);
+    // Each web_search_tool_result block is one billed search ($10/1,000 —
+    // see index.js's WEB_SEARCH_PRICE_PER_SEARCH) — a real cost on top of
+    // tokens that the model's own usage totals don't include.
+    searchCount += response.content.filter((block) => block.type === "web_search_tool_result").length;
     messages = [...messages, { role: "assistant", content: response.content }];
   } while (
     response.stop_reason === "pause_turn" &&
@@ -100,7 +105,7 @@ async function runResearchPhase({ client, model, maxTokens, userTurn, maxIterati
     totalTokens < maxTotalTokens
   );
 
-  return { messages, iterations, totalTokens, lastResponse: response };
+  return { messages, iterations, totalTokens, searchCount, lastResponse: response };
 }
 
 // Verification/finalize phase: always exactly one call, tools removed so

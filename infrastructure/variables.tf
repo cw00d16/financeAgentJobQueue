@@ -63,6 +63,12 @@ variable "research_max_total_tokens" {
   default     = 100000
 }
 
+variable "research_max_search_uses" {
+  description = "Caps web_search's max_uses per research-phase call — the main cost lever, since each search is billed $0.01 flat on top of tokens and isn't reflected in token usage at all"
+  type        = number
+  default     = 5
+}
+
 variable "dynamodb_billing_mode" {
   description = "DynamoDB billing mode: PAY_PER_REQUEST or PROVISIONED"
   type        = string

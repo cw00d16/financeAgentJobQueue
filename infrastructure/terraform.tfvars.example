@@ -22,6 +22,9 @@ research_max_receive_count   = 3
 # section)
 research_max_iterations   = 5
 research_max_total_tokens = 100000
+# Real-world measured cost: ~10 uncapped searches cost ~$0.15/job ($0.10 of
+# that just the flat search fee). Capping at 5 brings a typical job to ~$0.09.
+research_max_search_uses = 5
 
 # DynamoDB billing — PAY_PER_REQUEST is cheapest for low traffic
 dynamodb_billing_mode = "PAY_PER_REQUEST"

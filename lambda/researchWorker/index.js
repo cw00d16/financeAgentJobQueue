@@ -24,12 +24,24 @@ const FACTS_TRUNCATE_CHARS = Number(process.env.FACTS_TRUNCATE_CHARS || 100000);
 // rate limiter.
 const MAX_ITERATIONS = Number(process.env.RESEARCH_MAX_ITERATIONS || 5);
 const MAX_TOTAL_TOKENS = Number(process.env.RESEARCH_MAX_TOTAL_TOKENS || 100000);
+// Caps web_search's max_uses per research-phase call. Below this, Claude
+// stops searching and writes with what it has instead of asking for more
+// (stop_reason "pause_turn") — which also means the research phase reliably
+// finishes in one call instead of the multi-iteration compounding case
+// (up to MAX_ITERATIONS rounds of up to 10 searches each, uncapped) that an
+// unset cap allows.
+const MAX_SEARCH_USES = Number(process.env.RESEARCH_MAX_SEARCH_USES || 5);
 
 // Haiku 4.5 list pricing per million tokens — keep in sync with
 // infrastructure/observability.tf's haiku_input_price_per_mtok /
 // haiku_output_price_per_mtok if the model or pricing ever changes.
 const INPUT_PRICE_PER_MTOK = 1;
 const OUTPUT_PRICE_PER_MTOK = 5;
+// Web search is billed separately from tokens — $10 per 1,000 searches —
+// and isn't reflected in response.usage at all, so it has to be counted
+// from web_search_tool_result blocks (see research.js's runResearchPhase)
+// and added on top of the token cost below.
+const WEB_SEARCH_PRICE_PER_SEARCH = 0.01;
 
 let cachedApiKey;
 async function getApiKey() {
@@ -109,13 +121,14 @@ async function processRecord(record) {
       truncateChars: FACTS_TRUNCATE_CHARS,
     });
 
-    const { messages, iterations, totalTokens: researchTokens } = await runResearchPhase({
+    const { messages, iterations, totalTokens: researchTokens, searchCount } = await runResearchPhase({
       client,
       model: MODEL,
       maxTokens: MAX_TOKENS,
       userTurn,
       maxIterations: MAX_ITERATIONS,
       maxTotalTokens: MAX_TOTAL_TOKENS,
+      maxSearchUses: MAX_SEARCH_USES,
     });
 
     const verifyResponse = await runVerifyPhase({ client, model: MODEL, maxTokens: MAX_TOKENS, messages });
@@ -126,6 +139,7 @@ async function processRecord(record) {
 
     const inputTokens = researchTokens + (verifyResponse.usage?.input_tokens || 0);
     const outputTokens = verifyResponse.usage?.output_tokens || 0;
+    const estimatedCostUsd = estimateCostUsd(inputTokens, outputTokens) + searchCount * WEB_SEARCH_PRICE_PER_SEARCH;
 
     const textBlock = verifyResponse.content.find((block) => block.type === "text");
     const result = JSON.parse(textBlock.text);
@@ -135,14 +149,17 @@ async function processRecord(record) {
       result,
       inputTokens,
       outputTokens,
-      estimatedCostUsd: estimateCostUsd(inputTokens, outputTokens),
+      webSearchCount: searchCount,
+      estimatedCostUsd,
     });
 
     log({
       outcome: "succeeded",
       researchIterations: iterations,
+      webSearchCount: searchCount,
       inputTokens,
       outputTokens,
+      estimatedCostUsd,
       latencyMs: Date.now() - startedAt,
     });
   } catch (err) {
