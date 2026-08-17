@@ -34,7 +34,13 @@ const EVAL_MAX_TOTAL_TOKENS = 20000;
 const EVAL_MAX_SEARCH_USES = 1;
 const JUDGE_MAX_TOKENS = 60;
 const FACTS_TRUNCATE_CHARS = 5000;
-const JUDGE_RESPONSE_TRUNCATE_CHARS = 1500;
+// usedExtractedFacts is the LAST field in RESEARCH_REPORT_SCHEMA, so a tight
+// truncation here silently cuts it out of what the judge sees before it ever
+// reaches the field — not a flaky judge call, a truncated one. A real
+// no-extracted-facts report ran ~5,650 chars stringified; 8000 gives
+// headroom without materially raising judge input cost (~$0.002/fixture at
+// Haiku's $1/MTok).
+const JUDGE_RESPONSE_TRUNCATE_CHARS = 8000;
 
 // Haiku 4.5 list pricing per million tokens — keep in sync with
 // infrastructure/observability.tf.
